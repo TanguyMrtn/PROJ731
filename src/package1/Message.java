@@ -6,7 +6,7 @@ public class Message {
 	private String content;
 	
 	public Message(String fileName, String content) {
-		this.label = "Phase0:"+fileName;
+		this.label = fileName;
 		this.content = content;
 		
 	}

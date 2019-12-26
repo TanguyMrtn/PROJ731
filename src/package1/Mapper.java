@@ -2,10 +2,13 @@ package package1;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.TreeMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
-public class Mapper implements Runnable{
+
+public class Mapper implements Runnable {
 
 	Thread thread;
 	BlockingQueue<Message> queue = new ArrayBlockingQueue<Message>(5);
@@ -18,8 +21,9 @@ public class Mapper implements Runnable{
 	
 	public void run() {
 		
-		Map<String, String> map = new HashMap<String, String> ();
 		Message message = this.queue.poll();
+		Map<String, String> map = new HashMap<String, String> ();
+		
 		System.out.println("Thread message : " + message);
 		if (message != null) {
             String[] separatedWords = message.getContent().split(" ");
@@ -31,17 +35,36 @@ public class Mapper implements Runnable{
                     map.put(str, "1");
                 }
             }
-            try {
-				thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-            System.out.println("Resultat : " + map);
+            
+            TreeMap<String, String> sorted = new TreeMap<>(map);
+            
+            String mapToString = mapToJSON(sorted);
+            Message newMessage = new Message("Phase1",mapToString);
+            
+            this.queue.add(newMessage);
             
         }
 	}
 	
-	public final void join() {}
+	public String mapToJSON(Map<String,String> map) {
+		
+		String json = "{";
+		
+		for(Entry<String, String> entry : map.entrySet()) {
+		    String cle = entry.getKey();
+		    cle = cle.replace("\n", "");
+		    String valeur = entry.getValue();
+		    String entryJSON = "\"" + cle + "\"" + ":" + "\"" + valeur + "\"" +" ,";
+		    json= json + entryJSON;
+
+		}
+		
+		json = json.substring(0, json.length() - 1);
+		json = json + "}";
+		
+		return json;
+		
+	}
 }
 
 

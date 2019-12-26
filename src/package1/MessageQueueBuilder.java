@@ -34,7 +34,7 @@ public class MessageQueueBuilder {
 	    	buf.close();
 	    	String fileAsString = sb.toString(); 
 	    	
-	    	Message newMessage = new Message(files[i].getName(),fileAsString);
+	    	Message newMessage = new Message("Phase0:"+files[i].getName(),fileAsString);
 	    	
 	    	messageQueue.add(newMessage);
 	    
