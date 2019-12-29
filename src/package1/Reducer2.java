@@ -3,29 +3,33 @@ package package1;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.Map.Entry;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.locks.Lock;
+import java.util.concurrent.atomic.AtomicInteger;
+/*import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;*/
 
 public class Reducer2 implements Runnable {
 	
 	Thread thread;
 	int infInterval;
 	int supInterval;
-	BlockingQueue<Message> queue = new ArrayBlockingQueue<Message>(15);
+	int numberOfMappers;
+	BlockingQueue<Message> queue;
 	Map<String, Integer> map = new TreeMap<String,Integer>();
-	IntHolder reducerRead;
+	AtomicInteger reducerRead;
 	int messageProcess = 0;
+	int reducerNumber;
 	
-	private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+	/*private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 	private final Lock writeLock = readWriteLock.writeLock();
-	private final Lock readLock = readWriteLock.readLock();
+	private final Lock readLock = readWriteLock.readLock(); */
 	
-	Reducer2(BlockingQueue<Message> messageQueue, int reducerNumber, IntHolder reducerRead, int numberOfReducers) {
+	Reducer2(BlockingQueue<Message> messageQueue, int reducerNumber, AtomicInteger reducerRead, int numberOfReducers, int numberOfMappers) {
 		this.queue=messageQueue;
 		this.reducerRead = reducerRead;
+		this.reducerNumber = reducerNumber;
+		this.numberOfMappers = numberOfMappers;
 		this.infInterval = Math.round((reducerNumber*57)/numberOfReducers+65);
 		this.supInterval = Math.round(((reducerNumber+1)*57)/numberOfReducers+65);
 		
@@ -40,8 +44,8 @@ public class Reducer2 implements Runnable {
 				
 				try {
 					//System.out.println(infInterval + " - " +supInterval);
+					//System.out.println("I'm waiting");
 					queue.wait();
-					
 					Message message = queue.peek();
 					messageProcess += 1;
 					//System.out.println("I stop waiting ");
@@ -62,36 +66,41 @@ public class Reducer2 implements Runnable {
 			
 					myMap.forEach((key, value) -> this.map.merge(key, value, (v1, v2) -> v1+v2));
 					
-					if (messageProcess == 4) {
-						
-						System.out.println("I'm building phase2 message");
-						
+					
+					
+					if (messageProcess == numberOfMappers) {
+						//System.out.println("I kill myself");
 						if (map.isEmpty()) {
-							reducerRead.value += 1;
+							reducerRead.getAndIncrement();
 							break;
 						}
-						String mapToString = mapToJSON(map);
-			            Message newMessage = new Message("Phase2",mapToString);
-			            this.queue.add(newMessage);
-			            reducerRead.value += 1;
-						break;
+						else {
+							String mapToString = mapToJSON(map);
+				            Message newMessage = new Message("Phase2",mapToString);
+				            this.queue.add(newMessage);
+				            reducerRead.getAndIncrement();
+							break;
+						}
+						
 					}
 					
-					writeLock.lock();
+					/* writeLock.lock();
 					readLock.lock();
-					try {
-						reducerRead.value += 1;
-					}
+					try { */
+					//System.out.println("Wtf");
+					reducerRead.getAndIncrement();
+					//System.out.println(reducerNumber + " " +infInterval + " - " +supInterval);
+					/*}
 					finally
 					{
 						writeLock.unlock();
 						readLock.unlock();
-					}
+					} */ 
 					
 					
 			} catch(InterruptedException e){
                 e.printStackTrace();
-            }
+            	}
 			}
 		}
 	}

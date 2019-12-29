@@ -2,20 +2,20 @@ package package1;
 
 import java.util.ArrayList;
 import java.util.TreeMap;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.locks.Lock;
+import java.util.concurrent.atomic.AtomicInteger;
+/*import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;*/
 
 public class Scheduler {
-	
-	int mapperDesiredNumber = 4;
-	int reducerDesiredNumber = 2;
+	//int numberOfNotif = 0;
+	int mapperDesiredNumber;
+	int reducerDesiredNumber;
 	
 	long time1= System.nanoTime();
 	long initTime= System.nanoTime();
-	private BlockingQueue<Message> queue = new ArrayBlockingQueue<Message>(15);
+	private BlockingQueue<Message> queue;
 	
 	int mapperActualNumber = 0;
 	ArrayList<Mapper> mapperList = new ArrayList<Mapper>();
@@ -24,7 +24,7 @@ public class Scheduler {
 	boolean mapperJoined = false;
 	BoolHolder reducerJoined = new BoolHolder(false);
 
-	IntHolder reducersReadPhase1 = new IntHolder(0);
+	AtomicInteger nbOfReducersReadPhase1 = new AtomicInteger(0);
 	
 	boolean notified = false;
 	int processedPhase1 = 0;
@@ -32,13 +32,15 @@ public class Scheduler {
 	TreeMap<String,Integer> finalMap = new TreeMap<String,Integer>();
 	boolean over = false;
 	
-	private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
-	private final Lock writeLock = readWriteLock.writeLock();
+	/*private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+	private final Lock writeLock = readWriteLock.writeLock();*/
 	
-	public Scheduler(BlockingQueue<Message> messageQueue) {
+	public Scheduler(BlockingQueue<Message> messageQueue, int numberOfReducers, int numberOfMappers) {
 		this.queue = messageQueue;
+		this.reducerDesiredNumber = numberOfReducers;
+		this.mapperDesiredNumber = numberOfMappers;
 		for (int i = 0; i<=reducerDesiredNumber-1;i++) {
-			Reducer2 reducer = new Reducer2(this.queue, i, this.reducersReadPhase1, this.reducerDesiredNumber);
+			Reducer2 reducer = new Reducer2(this.queue, i, this.nbOfReducersReadPhase1, this.reducerDesiredNumber, this.mapperDesiredNumber);
 			reducerList.add(reducer);
 		}
 	}
@@ -72,6 +74,7 @@ public class Scheduler {
 				long time3= System.nanoTime();
 				System.out.println("Reducing time : " + (time3-time1) + " nanoseconds");
 				System.out.println("I joined reducers");
+				//System.out.println(queue.poll().getLabel());
 				reducerJoined.value = true;
 			}
 			
@@ -95,24 +98,35 @@ public class Scheduler {
 
 		if ((messagePhase.equals("Phase1")) && (mapperJoined == true)) {
 
-			if ((reducersReadPhase1.value == reducerDesiredNumber) && (notified == true)) {
-				writeLock.lock();
-				try {
-					reducersReadPhase1.value = 0;
-				}
-				finally {
-					writeLock.unlock();
-				}
+			if ((nbOfReducersReadPhase1.get() == reducerDesiredNumber) && (notified == true)) {
+				//writeLock.lock();
+				//try {
+				nbOfReducersReadPhase1.getAndSet(0);
 				queue.poll();
+				//}
+				//finally {
+				//	writeLock.unlock();
+				//}
+				
 				notified = false;
 			}
 			else if ((notified == false)) {
-				synchronized (queue) {
-					//System.out.println("I notify");
-					processedPhase1 += 1;
-					queue.notifyAll();
-					notified = true;
+				boolean stillRuning = false;
+				for (Reducer2 red : reducerList) {
+					if (red.thread.getState() != Thread.State.WAITING) {
+						stillRuning = true;
+						break;
+					}
 				}
+				if (stillRuning == false) {
+					synchronized (queue) {
+						processedPhase1 += 1;
+						queue.notifyAll();
+						//numberOfNotif += 1;
+						notified = true;
+					}
+				}
+				
 			}
 		}
 
@@ -122,14 +136,14 @@ public class Scheduler {
 	}
 	
 	public void finalProcess() {
-		
+		//System.out.println(queue.size() + " " + reducerList.size());
 		Message message = queue.poll();
 		if (queue.isEmpty()) {
 			over = true;
 		}
 		if ((message.getContent() != null)) {
 			TreeMap<String,Integer> myMap = new TreeMap<String,Integer>();
-			System.out.println(message.getContent());
+			//System.out.println(message.getContent());
 			String[] pairs = message.getContent().replace("{", "").replace("}", "").split(" ,");
 			for (int i=0;i<pairs.length;i++) {
 				String pair = pairs[i];

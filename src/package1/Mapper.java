@@ -4,14 +4,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 
 public class Mapper implements Runnable {
 
 	Thread thread;
-	BlockingQueue<Message> queue = new ArrayBlockingQueue<Message>(15);
+	BlockingQueue<Message> queue;
 	
 	Mapper(BlockingQueue<Message> queue) {
 		this.queue=queue;
@@ -22,6 +21,7 @@ public class Mapper implements Runnable {
 	public void run() {
 		
 		Message message = this.queue.poll();
+		//System.out.println("Maping...");
 		Map<String, Integer> map = new HashMap<String, Integer> ();
 		
 		if (message != null) {
@@ -33,13 +33,13 @@ public class Mapper implements Runnable {
                 } else {
                     map.put(str, 1);
                 }
+                //System.out.println("working");
             }
             
             TreeMap<String, Integer> sorted = new TreeMap<>(map);
             
             String mapToString = mapToJSON(sorted);
             Message newMessage = new Message("Phase1",mapToString);
-            System.out.println("Map done");
             this.queue.add(newMessage);
             
         }
